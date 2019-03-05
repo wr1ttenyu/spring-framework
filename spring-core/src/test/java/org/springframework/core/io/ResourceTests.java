@@ -328,4 +328,12 @@ public class ResourceTests {
 		new ClassPathResource("Resource.class", getClass()).createRelative("X").readableChannel();
 	}
 
+	@Test
+	public void testMyStudyCode() throws IOException {
+		ResourceLoader resourceLoader = new DefaultResourceLoader();
+
+		Resource fileResource1 = resourceLoader.getResource("C:\\Codes\\marketing\\metro-admin\\template.info");
+		System.out.println("fileResource1 is FileSystemResource:" + (fileResource1 instanceof FileSystemResource));
+		System.out.println(fileResource1.exists());
+	}
 }

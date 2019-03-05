@@ -167,6 +167,18 @@ public class FileSystemResource extends AbstractResource implements WritableReso
 	}
 
 	/**
+	 * This implementation checks whether the underlying file is marked as writable
+	 * (and corresponds to an actual file with content, not to a directory).
+	 * @see java.io.File#canWrite()
+	 * @see java.io.File#isDirectory()
+	 */
+	@Override
+	public boolean isWritable() {
+		return (this.file != null ? this.file.canWrite() && !this.file.isDirectory() :
+				Files.isWritable(this.filePath) && !Files.isDirectory(this.filePath));
+	}
+
+	/**
 	 * This implementation opens a NIO file stream for the underlying file.
 	 * @see java.io.FileInputStream
 	 */
@@ -178,18 +190,6 @@ public class FileSystemResource extends AbstractResource implements WritableReso
 		catch (NoSuchFileException ex) {
 			throw new FileNotFoundException(ex.getMessage());
 		}
-	}
-
-	/**
-	 * This implementation checks whether the underlying file is marked as writable
-	 * (and corresponds to an actual file with content, not to a directory).
-	 * @see java.io.File#canWrite()
-	 * @see java.io.File#isDirectory()
-	 */
-	@Override
-	public boolean isWritable() {
-		return (this.file != null ? this.file.canWrite() && !this.file.isDirectory() :
-				Files.isWritable(this.filePath) && !Files.isDirectory(this.filePath));
 	}
 
 	/**
