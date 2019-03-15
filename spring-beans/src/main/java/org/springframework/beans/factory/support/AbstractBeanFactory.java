@@ -238,11 +238,14 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	@SuppressWarnings("unchecked")
 	protected <T> T doGetBean(final String name, @Nullable final Class<T> requiredType,
 			@Nullable final Object[] args, boolean typeCheckOnly) throws BeansException {
-
+		// <1> 返回 bean 名称，剥离工厂引用前缀。
+		// 如果 name 是 alias ，则获取对应映射的 beanName 。
 		final String beanName = transformedBeanName(name);
 		Object bean;
 
+		// 从缓存中或者实例工厂中获取 Bean 对象
 		// Eagerly check singleton cache for manually registered singletons.
+		// 单例模式的 Bean 在整个过程中只会被创建一次。第一次创建后会将该 Bean 加载到缓存中。后面，在获取 Bean 就会直接从单例缓存中获取
 		Object sharedInstance = getSingleton(beanName);
 		if (sharedInstance != null && args == null) {
 			if (logger.isTraceEnabled()) {
@@ -254,38 +257,54 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 					logger.trace("Returning cached instance of singleton bean '" + beanName + "'");
 				}
 			}
+			// <x> 完成 FactoryBean 的相关处理，并用来获取 FactoryBean 的处理结果
+			// 一般情况下，Spring 通过反射机制利用 bean 的 class 属性指定实现类来实例化 bean 。某些情况下，实例化 bean 过程比较复杂，
+			// 如果按照传统的方式，则需要在配置文件中提供大量的配置信息，配置方式的灵活性是受限的，这时采用编码的方式可能会得到一个简单的方案。
+			// Spring 为此提供了一个 FactoryBean 的工厂类接口，用户可以通过实现该接口定制实例化 bean的逻辑。
+			//FactoryBean 接口对于 Spring 框架来说占有重要的位置，Spring 自身就提供了 70 多个 FactoryBean 的实现。
+			// 它们隐藏了实例化一些复杂 bean 的细节，给上层应用带来了便利。
 			bean = getObjectForBeanInstance(sharedInstance, name, beanName, null);
 		}
 
 		else {
 			// Fail if we're already creating this bean instance:
 			// We're assumably within a circular reference.
+			// 因为 Spring 只解决单例模式下得循环依赖，在原型模式下如果存在循环依赖则会抛出异常。
+			// Spring 只处理单例模式下得循环依赖，对于原型模式的循环依赖直接抛出异常。主要原因还是在于，和 Spring 解决循环依赖的策略有关。
+			//
+			// 对于单例( Singleton )模式， Spring 在创建 Bean 的时候并不是等 Bean 完全创建完成后才会将 Bean 添加至缓存中，
+			// 而是不等 Bean 创建完成就会将创建 Bean 的 ObjectFactory 提早加入到缓存中，这样一旦下一个 Bean
+			// 创建的时候需要依赖 bean 时则直接使用 ObjectFactroy 。
+			// 但是原型( Prototype )模式，我们知道是没法使用缓存的，所以 Spring 对原型模式的循环依赖处理策略则是不处理。
 			if (isPrototypeCurrentlyInCreation(beanName)) {
 				throw new BeanCurrentlyInCreationException(beanName);
 			}
 
+			// 如果当前容器中没有找到，则从父类容器中加载
 			// Check if bean definition exists in this factory.
 			BeanFactory parentBeanFactory = getParentBeanFactory();
 			if (parentBeanFactory != null && !containsBeanDefinition(beanName)) {
 				// Not found -> check parent.
 				String nameToLookup = originalBeanName(name);
+				// 如果，父类容器为 AbstractBeanFactory ，直接递归查找
 				if (parentBeanFactory instanceof AbstractBeanFactory) {
 					return ((AbstractBeanFactory) parentBeanFactory).doGetBean(
 							nameToLookup, requiredType, args, typeCheckOnly);
-				}
-				else if (args != null) {
+					// 用明确的 args 从 parentBeanFactory 中，获取 Bean 对象
+				} else if (args != null) {
 					// Delegation to parent with explicit args.
 					return (T) parentBeanFactory.getBean(nameToLookup, args);
-				}
-				else if (requiredType != null) {
+					// 用明确的 requiredType 从 parentBeanFactory 中，获取 Bean 对象
+				} else if (requiredType != null) {
 					// No args -> delegate to standard getBean method.
 					return parentBeanFactory.getBean(nameToLookup, requiredType);
-				}
-				else {
+				// 直接使用 nameToLookup 从 parentBeanFactory 获取 Bean 对象
+				} else {
 					return (T) parentBeanFactory.getBean(nameToLookup);
 				}
 			}
 
+			// 如果不是仅仅做类型检查则是创建bean，这里需要记录
 			if (!typeCheckOnly) {
 				markBeanAsCreated(beanName);
 			}
